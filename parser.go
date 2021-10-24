@@ -21,12 +21,6 @@ type Directive struct {
 	Comment   string       `json:"comment,omitempty"`
 }
 
-type State int
-
-const (
-	StateSearchKey State = iota
-	StateSearchValue
-)
 
 func New(options *ParseOptions) *Parser {
 	if options == nil {
@@ -93,12 +87,18 @@ func (p *Parser) ParseReader(rd io.Reader) ([]*Directive, error) {
 	return directives, nil
 }
 
+
+const (
+	stateScanDirective = "ScanDirective"
+	stateScanArgs      = "ScanArgs"
+)
+
 func (p *Parser) parseReader(reader *bufio.Reader) ([]*Directive, error) {
 	directives := make([]*Directive, 0)
 
 	var buf bytes.Buffer
 	var current *Directive
-	var state State
+	var state string
 
 readConfBlock:
 	for {
@@ -166,7 +166,7 @@ readConfBlock:
 		switch b {
 		case ' ', '\t':
 			switch state {
-			case StateSearchKey:
+			case stateScanDirective:
 				if buf.Len() > 0 {
 					if current == nil {
 						current = &Directive{
@@ -178,9 +178,9 @@ readConfBlock:
 						}
 					}
 					buf.Reset()
-					state = StateSearchValue
+					state = stateScanArgs
 				}
-			case StateSearchValue:
+			case stateScanArgs:
 				if buf.Len() > 0 {
 					current.Args = append(current.Args, buf.String())
 					buf.Reset()
@@ -188,7 +188,7 @@ readConfBlock:
 			}
 		case '\n':
 			switch state {
-			case StateSearchKey:
+			case stateScanDirective:
 				if buf.Len() > 0 {
 					if current == nil {
 						current = &Directive{
@@ -200,10 +200,10 @@ readConfBlock:
 						}
 					}
 					buf.Reset()
-					state = StateSearchValue
+					state = stateScanArgs
 				}
 				p.line++
-			case StateSearchValue:
+			case stateScanArgs:
 				p.line++
 				if buf.Len() > 0 {
 					current.Args = append(current.Args, buf.String())
@@ -229,7 +229,7 @@ readConfBlock:
 			}
 			buf.WriteByte(b)
 		case '"', '\'':
-			if state == StateSearchValue && buf.Len() != 0 {
+			if state == stateScanArgs && buf.Len() != 0 {
 				buf.WriteByte(b)
 				continue
 			}
@@ -274,7 +274,7 @@ readConfBlock:
 				}
 
 				switch state {
-				case StateSearchKey:
+				case stateScanDirective:
 					current = &Directive{
 						Line:      p.line,
 						FileName:  p.filename,
@@ -283,9 +283,9 @@ readConfBlock:
 						Block:     make([]*Directive, 0),
 					}
 					buf.Reset()
-					state = StateSearchValue
+					state = stateScanArgs
 					break readString
-				case StateSearchValue:
+				case stateScanArgs:
 					for i := 1; ; i++ {
 						unread, err := reader.Peek(i)
 						if err != nil {
@@ -313,7 +313,7 @@ readConfBlock:
 			}
 		case ';':
 			switch state {
-			case StateSearchKey:
+			case stateScanDirective:
 				if buf.Len() > 0 {
 					directives = append(directives, &Directive{
 						Line:      p.line,
@@ -325,7 +325,7 @@ readConfBlock:
 					current = nil
 					buf.Reset()
 				}
-			case StateSearchValue:
+			case stateScanArgs:
 				if buf.Len() > 0 {
 					current.Args = append(current.Args, buf.String())
 				}
@@ -355,11 +355,11 @@ readConfBlock:
 				directives = append(directives, current)
 				current = nil
 				buf.Reset()
-				state = StateSearchKey
+				state = stateScanDirective
 			}
 		case '{':
 			switch state {
-			case StateSearchKey:
+			case stateScanDirective:
 				if buf.Len() == 0 {
 					return nil, fmt.Errorf(`unexpected '%c' in file %s line %d`, b, p.filename, p.line)
 				}
@@ -377,7 +377,7 @@ readConfBlock:
 				directives = append(directives, current)
 				current = nil
 				buf.Reset()
-			case StateSearchValue:
+			case stateScanArgs:
 				if buf.Len() > 0 {
 					current.Args = append(current.Args, buf.String())
 				}
@@ -466,13 +466,13 @@ readConfBlock:
 				directives = append(directives, current)
 				current = nil
 				buf.Reset()
-				state = StateSearchKey
+				state = stateScanDirective
 			}
 		case '}':
 			switch state {
-			case StateSearchKey:
+			case stateScanDirective:
 				break readConfBlock
-			case StateSearchValue:
+			case stateScanArgs:
 				return nil, fmt.Errorf(`unexpected '%c' in file %s line %d`, b, p.filename, p.line)
 			}
 		case '$':
