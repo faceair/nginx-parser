@@ -63,14 +63,15 @@ func (p *Parser) ParseFile(filename string) ([]*Directive, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.ParseReader(bufio.NewReader(file))
+	return p.ParseReader(file)
 }
 
 func (p *Parser) ParseString(s string) ([]*Directive, error) {
-	return p.ParseReader(bufio.NewReader(bytes.NewReader([]byte(s))))
+	return p.ParseReader(bytes.NewReader([]byte(s)))
 }
 
-func (p *Parser) ParseReader(reader *bufio.Reader) ([]*Directive, error) {
+func (p *Parser) ParseReader(rd io.Reader) ([]*Directive, error) {
+	reader := bufio.NewReader(rd)
 	p.line = 1
 	directives, err := p.parseReader(reader)
 	if err != nil {
