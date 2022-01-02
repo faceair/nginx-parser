@@ -21,7 +21,6 @@ type Directive struct {
 	Comment   string       `json:"comment,omitempty"`
 }
 
-
 func New(options *ParseOptions) *Parser {
 	if options == nil {
 		options = &ParseOptions{}
@@ -87,7 +86,6 @@ func (p *Parser) ParseReader(rd io.Reader) ([]*Directive, error) {
 	return directives, nil
 }
 
-
 const (
 	stateScanDirective = "ScanDirective"
 	stateScanArgs      = "ScanArgs"
@@ -98,7 +96,7 @@ func (p *Parser) parseReader(reader *bufio.Reader) ([]*Directive, error) {
 
 	var buf bytes.Buffer
 	var current *Directive
-	var state string
+	state := stateScanDirective
 
 readConfBlock:
 	for {
